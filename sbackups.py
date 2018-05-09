@@ -73,6 +73,7 @@ log_dateformat = '%Y-%m-%d %H:%M:%S'
 
 debug = True
 
+
 def backup_host(hostname, items, backup_path, skip, skip_compress_items):
 
     logging.info("Backup host " + hostname + " started.")
@@ -156,7 +157,7 @@ def backup_file(root, name, bkpath, bkroot, compress=True):
             shutil.copy2(src_filename, bak_filename)
 
 
-def backup(c, conf, docs=False):
+def backup(nocompress=False, noprevious=False):
     # mount
     print "backup"
     pass
@@ -178,116 +179,101 @@ def mark_deleted():
     pass
 
 
+def get_config():
+    hostname = socket.gethostname()
+
+    # host configuration
+    host_conf = config['default']
+    if hostname in config:
+        host_conf = config[hostname]
+    elif hostname.lower() in config:
+        host_conf = config[hostname.lower()]
+    elif hostname.upper() in config:
+        host_conf = config[hostname.upper()]
+
+    return host_conf
+
+
 if __name__ == "__main__":
+
+    print ""
+
+    if len(sys.argv) == 1:
+        sys.argv.append("backup")  # default command
 
     parser = argparse.ArgumentParser()
 
-    subparsers = parser.add_subparsers(help='Commands')
+    subparsers = parser.add_subparsers(dest='command', help='Commands')
 
     backup_parser = subparsers.add_parser('backup', help='Backup operation')
+    backup_parser.add_argument('--nocompress', action='store_true',
+                               default=False, help='Skip compress action')
+    backup_parser.add_argument('--noprevious', action='store_true',
+                               default=False, help='Delete previous versions')
+    backup_parser.add_argument('--debug', '-db', action='store_true',
+                               default=False, help='No file operations')
 
     restore_parser = subparsers.add_parser('restore', help='Restore operation')
-    restore_parser.add_argument('target', action='store', help='Restory target directory')
-    restore_parser.add_argument('source', action='store', default=".", help='Source backup directory')
+    restore_parser.add_argument('--target', '-t', action='store', help='Restory target directory')
+    restore_parser.add_argument('--source', '-s', action='store', default=".", help='Source backup directory')
 
     clean_versions_parser = subparsers.add_parser('clean', help='Clean old versions operation')
-    clean_versions_parser.add_argument('-source', action='store', default=".", help='Source backup directory')
-    clean_versions_parser.add_argument('depth', action='store',
+    clean_versions_parser.add_argument('--source', '-s', action='store', default=".",
+                                       help='Source backup directory')
+    clean_versions_parser.add_argument('--depth', '-d', action='store',
                                        type=int, default=-1, help='Version cleaning depth')
 
     mark_deleted_parser = subparsers.add_parser('mark', help='Mark deleted operation')
-    mark_deleted_parser.add_argument('-source', action='store', default=".", help='Source backup directory')
+    mark_deleted_parser.add_argument('--source', '-s', action='store', default=".",
+                                     help='Source backup directory')
 
     complicated_parser = subparsers.add_parser('complicated', help='Backup, mark, clean operation')
-    complicated_parser.add_argument('depth', action='store',
+    complicated_parser.add_argument('--depth', '-d', action='store',
                                     type=int, default=-1, help='Version cleaning depth')
 
-    parser.add_argument('--version', action='version', version='%(prog)s ' + __version__)
+    parser.add_argument('--version', '-v', action='version', version='%(prog)s ' + __version__)
 
-    print parser.parse_args()
+    args = parser.parse_args()
 
+    if debug:
+        print args
 
+    # log configuration
 
+    conf = get_config()
 
+    conf_log_file = log_file
+    if "log_file" in conf:
+        conf_log_file =  conf["log_file"]
+    if not os.path.isabs(conf_log_file):
+        conf_log_file = os.path.join(conf['path'], conf_log_file)
 
-#
-#     print 44
-#
-#     commands = ["backup", "restore", "clean_versions", "mark_deleted", "complicated"]
-#
-#     hostname = socket.gethostname()
-#
-#     # host configuration
-#     host_conf = config['default']
-#     if hostname in config:
-#         host_conf = config[hostname]
-#     elif hostname.lower() in config:
-#         host_conf = config[hostname.lower()]
-#     elif hostname.upper() in config:
-#         host_conf = config[hostname.upper()]
-#
-#     # log configuration
-#     conf_log_file = log_file
-#     if "log_file" in host_conf:
-#         conf_log_file =  host_conf["log_file"]
-#     if not os.path.isabs(conf_log_file):
-#         conf_log_file = os.path.join(host_conf['path'], conf_log_file)
-#
-#     logging.basicConfig(
-#         filename=conf_log_file,
-#         level=logging.DEBUG,
-#         datefmt=log_dateformat,
-#         format=log_format)
-#
-#     ch = logging.StreamHandler()
-#     ch.setFormatter(logging.Formatter(log_format))
-#     logging.getLogger().addHandler(ch)
-#
-#     logging.info("")
-#     logging.info("Backuper started.")
-#
-#
-#
-#     a=1/0
-#
-#     # set configuration from defaults
-#     print host_conf
-#     # host_conf[]= host_conf[] if host_conf[] in host_conf else 33
-#
-#     print host_conf
-#     #commands
-#
-#
-#     error = ""
-#     action = "backup"
-#
-#     if len(sys.argv) > 1:
-#         action = sys.argv[1].lower()
-#         logging.info("action " + action)
-#
-#     if action not in arguments:
-#         action = "arguments"
-#         error = "Unknown command."
-#
-#     if action == "arguments":
-#         print('Arguments: ' + ", ".join(arguments) + '.')
-#
-#     elif action == "backup":
-#         backup(host_conf)
-#
-#     elif action == "restore":
-#         # restore(host_conf)
-#         pass
-#     elif action == "clean_versions":
-#         # clean_versions(host_conf)
-#         pass
-#     elif action == "mark_deleted":
-#         # mark_deleted(host_conf)
-#         pass
-#     elif action == "complicated":
-#         backup(host_conf)
-#         # clean_versions(host_conf)
-#         # mark_deleted(host_conf)
-#
-#     if error != "":
-#         print "Error: " + error
+    logging.basicConfig(
+        filename=conf_log_file,
+        level=logging.DEBUG,
+        datefmt=log_dateformat,
+        format=log_format)
+
+    ch = logging.StreamHandler()
+    ch.setFormatter(logging.Formatter(log_format))
+    logging.getLogger().addHandler(ch)
+
+    logging.info("")
+    logging.info("Backuper started.")
+
+    # execute command operation
+
+    if args.command == "backup":
+        debug = args.debug
+        backup(nocompress=args.nocompress, noprevious=args.noprevious)
+
+    elif args.command == "restore":
+        restore()
+    elif args.command == "clean":
+        clean_versions()
+    elif args.command == "mark":
+        mark_deleted()
+    elif args.command == "complicated":
+        backup()
+        clean_versions()
+        mark_deleted()
